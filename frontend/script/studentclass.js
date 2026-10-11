@@ -350,8 +350,8 @@
         submissionStatus: response?.data?.submissionStatus || 'SUBMITTED',
         submittedAt: response?.data?.submittedAt || new Date().toISOString(),
       });
-      await window.AppDialog?.alert(`${activityTitle} submitted successfully.`, { title: 'Activity Submitted' });
       await loadAll();
+      await window.AppDialog?.alert(`${activityTitle} submitted successfully.`, { title: 'Activity Submitted' });
     } catch (err) {
       await window.AppDialog?.alert(err?.message || 'Failed to submit activity.', { title: 'Submission Failed' });
     } finally {
@@ -422,12 +422,12 @@
         apiClient.request('/users/profile', { method: 'GET' }, { redirectOnUnauthorized: false }),
         apiClient.request(
           `/classrooms/${encodeURIComponent(classroomId)}/activities/student`,
-          { method: 'GET' },
+          { method: 'GET', headers: { 'Cache-Control': 'no-cache' }, cache: 'no-store' },
           { redirectOnUnauthorized: false },
         ),
         apiClient.request(
           `/classrooms/${encodeURIComponent(classroomId)}/activities/unsubmitted`,
-          { method: 'GET', headers: { 'Cache-Control': 'no-cache' } },
+          { method: 'GET', headers: { 'Cache-Control': 'no-cache' }, cache: 'no-store' },
           { redirectOnUnauthorized: false },
         ),
       ]);
@@ -793,8 +793,8 @@
       setSubmitButtonState('success');
       closeSubmissionModal({ force: true });
       clearSubmissionForm();
-      await window.AppDialog?.alert('Repository attached. Push your finished work to GitHub, then click Submit Activity in Tracked Activities.', { title: 'Repository Attached' });
       await loadAll();
+      await window.AppDialog?.alert('Repository attached. Push your finished work to GitHub, then click Submit Activity in Tracked Activities.', { title: 'Repository Attached' });
     } catch (err) {
       setSubmitButtonState('error');
       await window.AppDialog?.alert(err?.message || 'Failed to attach repository. Please try again.', { title: 'Attachment Failed' });

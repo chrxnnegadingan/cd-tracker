@@ -1096,9 +1096,9 @@ async function handleCreateClass() {
             })
         });
 
-        showNotification('Classroom created successfully!', 'success');
         closeModal(createModal);
-        await loadClasses();
+        await refreshClassroomTab('created');
+        showNotification('Classroom created successfully!', 'success');
 
     } catch (error) {
         console.error('Error creating classroom:', error);
@@ -1149,9 +1149,9 @@ async function handleJoinClass() {
         const hasPassword = Boolean(response?.data?.hasPassword ?? response?.hasPassword);
         setJoinPasscodeRequirement(hasPassword, normalizedCode);
 
-        showNotification('Successfully joined classroom!', 'success');
         closeModal(joinModal);
-        await loadClasses();
+        await refreshClassroomTab('joined');
+        showNotification('Successfully joined classroom!', 'success');
 
     } catch (error) {
         console.error('Error joining classroom:', error);
@@ -1182,7 +1182,11 @@ async function loadClasses() {
     classDataLoaded.created = false;
     renderClasses();
 
-    await apiRequest('/classrooms/me', { method: 'GET' })
+    await apiRequest('/classrooms/me', {
+        method: 'GET',
+        headers: { 'Cache-Control': 'no-cache' },
+        cache: 'no-store'
+    })
         .then((createdResult) => {
             const createdRaw = Array.isArray(createdResult) ? createdResult : createdResult?.data || [];
             classroomsData.created = Array.isArray(createdRaw)
@@ -1200,13 +1204,17 @@ async function loadClasses() {
         });
 }
 
-async function loadJoinedClasses() {
-    if (classLoadState.joined || classDataLoaded.joined) return;
+async function loadJoinedClasses({ force = false } = {}) {
+    if (classLoadState.joined || (!force && classDataLoaded.joined)) return;
 
     classLoadState.joined = true;
     renderClasses();
 
-    await apiRequest('/classrooms/join', { method: 'GET' }, { redirectOnUnauthorized: false })
+    await apiRequest('/classrooms/join', {
+        method: 'GET',
+        headers: { 'Cache-Control': 'no-cache' },
+        cache: 'no-store'
+    }, { redirectOnUnauthorized: false })
         .then((joinedData) => {
             const joinedRaw = Array.isArray(joinedData) ? joinedData : joinedData?.data || [];
             classroomsData.joined = Array.isArray(joinedRaw)
@@ -1259,14 +1267,21 @@ async function loadJoinedClasses() {
         });
 }
 
-function switchTab(tab) {
+async function refreshClassroomTab(tab) {
     if (!tab) return;
     currentTab = tab;
     document.querySelectorAll('.tab-button').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.tab === tab);
     });
-    if (tab === 'joined') loadJoinedClasses();
-    renderClasses();
+    if (tab === 'joined') {
+        await loadJoinedClasses({ force: true });
+    } else {
+        await loadClasses();
+    }
+}
+
+function switchTab(tab) {
+    void refreshClassroomTab(tab);
 }
 
 function renderClasses() {

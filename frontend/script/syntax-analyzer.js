@@ -237,36 +237,25 @@
       }
 
       const renderFinding = (finding, isWarning = false) => {
-        const findingType = isWarning ? "warning" : "error";
-        const cause = finding.cause || "The analyzer detected this issue.";
-        const impact = finding.impact || "This may affect correctness, security, or maintainability.";
-        const recommendation = finding.recommendation ||
-          "Review the reported code and correct the issue before continuing.";
+        const hasText = (value) => typeof value === "string" && value.trim().length > 0;
+        const hasLine = finding?.line !== null && finding?.line !== undefined && String(finding.line).trim() !== "";
+        const line = hasLine ? finding.line : "";
+        const message = hasText(finding?.message) ? finding.message : "";
+        const explanation = hasText(finding?.explanation) ? finding.explanation : "";
+        const sourceLine = hasText(finding?.source_line) ? finding.source_line : "";
+        const codeToAdd = hasText(finding?.code_to_add) ? finding.code_to_add : "";
 
         return `
           <article class="finding-card ${isWarning ? "warning" : ""}">
             <div class="finding-meta">
-              <span class="finding-tag">Line ${escapeHtml(finding.line || "?")}</span>
-              <span class="finding-tag">${escapeHtml(finding.rule_id || findingType.toUpperCase())}</span>
-              <span class="finding-tag">${escapeHtml(finding.category || "code quality")}</span>
-              <span class="finding-tag">${escapeHtml(finding.severity || findingType)}</span>
+              ${line !== "" ? `<span class="finding-tag">Line ${escapeHtml(line)}</span>` : ""}
             </div>
 
-            <div class="finding-title">
-              ${escapeHtml(finding.message || "Analyzer finding")}
-            </div>
+            ${message ? `<div class="finding-title">${escapeHtml(message)}</div>` : ""}
 
-            <div class="finding-detail">
-              <strong>Cause:</strong> ${escapeHtml(cause)}
-            </div>
-
-            <div class="finding-detail">
-              <strong>Impact:</strong> ${escapeHtml(impact)}
-            </div>
-
-            <div class="finding-detail finding-action">
-              <strong>Recommended action:</strong> ${escapeHtml(recommendation)}
-            </div>
+            ${explanation ? `<div class="finding-detail">${escapeHtml(explanation)}</div>` : ""}
+            ${sourceLine ? `<div class="finding-detail"><strong>Related code:</strong><pre class="finding-code">${escapeHtml(sourceLine)}</pre></div>` : ""}
+            ${codeToAdd ? `<div class="finding-detail finding-action"><strong>Code to add</strong><pre class="finding-code">${escapeHtml(codeToAdd)}</pre></div>` : ""}
           </article>`;
       };
 

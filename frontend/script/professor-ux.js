@@ -6,6 +6,32 @@
 
   let renderQueued = false;
 
+  function syncAssignmentsViewport() {
+    const cards = [...assignmentsList.querySelectorAll(".assignment-card")];
+    if (cards.length <= 3) {
+      assignmentsList.classList.remove("has-scroll");
+      assignmentsList.style.removeProperty("--assignment-list-max-height");
+      return;
+    }
+
+    // Keep exactly the first three activity cards in view. Using their real
+    // positions means longer descriptions and responsive wrapping are handled.
+    const thirdCard = cards[2];
+    const listTop = assignmentsList.getBoundingClientRect().top;
+    const thirdBottom = thirdCard.getBoundingClientRect().bottom;
+    const bottomSpacing = Number.parseFloat(getComputedStyle(thirdCard).marginBottom) || 0;
+    const visibleHeight = Math.ceil(thirdBottom - listTop + bottomSpacing);
+
+    if (visibleHeight > 0) {
+      assignmentsList.style.setProperty("--assignment-list-max-height", `${visibleHeight}px`);
+      assignmentsList.classList.add("has-scroll");
+    }
+  }
+
+  function scheduleAssignmentsViewport() {
+    window.requestAnimationFrame(syncAssignmentsViewport);
+  }
+
   function safeState() {
     try {
       return typeof state !== "undefined" ? state : null;
@@ -95,7 +121,8 @@
     `;
 
     const list = panel.querySelector(".ct-needs-grading__list");
-    queue.slice(0, 5).forEach((item) => {
+    // Render the whole queue; the list itself keeps the panel to two visible rows.
+    queue.forEach((item) => {
       const row = document.createElement("button");
       row.type = "button";
       row.className = "ct-needs-grading__row";
@@ -115,6 +142,7 @@
     window.requestAnimationFrame(() => {
       renderQueued = false;
       renderPanel();
+      scheduleAssignmentsViewport();
     });
   }
 
@@ -128,6 +156,7 @@
 
   const observer = new MutationObserver(queueRender);
   observer.observe(assignmentsList, { childList: true, subtree: true });
+  window.addEventListener("resize", scheduleAssignmentsViewport);
   document.getElementById("saveGradeBtn")?.addEventListener("click", () => window.setTimeout(queueRender, 800));
 
   queueRender();

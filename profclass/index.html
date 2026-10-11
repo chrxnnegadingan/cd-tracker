@@ -39,10 +39,12 @@
 
     <div class="professor-profile" id="professorProfile">
         <span class="professor-name" id="professorName">Loading...</span>
-        <div class="professor-avatar" id="professorAvatar"></div>
-
-        <!-- Dropdown -->
-        
+        <button type="button" class="professor-avatar" id="professorAvatar" aria-label="Open account menu" aria-haspopup="menu" aria-expanded="false"></button>
+        <div class="professor-dropdown" id="professorProfileDropdown" role="menu" hidden>
+            <button type="button" class="dropdown-btn" id="professorLogoutBtn" role="menuitem">
+                <i class="fas fa-right-from-bracket"></i> Logout
+            </button>
+        </div>
     </div>
 </div>
     </header>

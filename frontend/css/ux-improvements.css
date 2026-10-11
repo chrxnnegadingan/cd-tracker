@@ -120,7 +120,18 @@
   border-radius: 999px;
   font-weight: 800;
 }
-.ct-needs-grading__list { display: grid; gap: 7px; margin-top: 12px; }
+/* Keep the grading queue compact: two activities remain visible and any
+   additional activities stay available in this panel's own scroll area. */
+.ct-needs-grading__list {
+  display: grid;
+  gap: 7px;
+  max-height: 110px;
+  margin-top: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
 .ct-needs-grading__row {
   width: 100%;
   display: flex;

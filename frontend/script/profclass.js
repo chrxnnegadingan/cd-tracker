@@ -141,6 +141,8 @@ function setupEventListeners() {
   const editAnnouncementModal = document.getElementById("editAnnouncementModal");
   const announcementsList = document.getElementById("announcementsList");
 
+  attachProfessorProfileMenu();
+
   if (createBtn) {
     createBtn.addEventListener("click", () => {
       const form = document.getElementById("createActivityForm");
@@ -528,6 +530,52 @@ function setupEventListeners() {
     const modal = event.target.closest(".modal");
     if (!modal || event.target !== modal) return;
     closeModal(modal.id);
+  });
+}
+
+function attachProfessorProfileMenu() {
+  const profile = document.getElementById("professorProfile");
+  const trigger = document.getElementById("professorAvatar");
+  const menu = document.getElementById("professorProfileDropdown");
+  const logoutButton = document.getElementById("professorLogoutBtn");
+  if (!profile || !trigger || !menu || !logoutButton) return;
+
+  const closeMenu = () => {
+    menu.hidden = true;
+    trigger.setAttribute("aria-expanded", "false");
+  };
+
+  trigger.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const isOpen = !menu.hidden;
+    menu.hidden = isOpen;
+    trigger.setAttribute("aria-expanded", String(!isOpen));
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!profile.contains(event.target)) closeMenu();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeMenu();
+  });
+
+  logoutButton.addEventListener("click", async () => {
+    closeMenu();
+    const confirmed = window.AppDialog?.confirm
+      ? await window.AppDialog.confirm("Are you sure you want to log out?", {
+          title: "Log Out", confirmText: "Log Out", danger: true,
+        })
+      : window.confirm("Are you sure you want to log out?");
+    if (!confirmed) return;
+
+    logoutButton.disabled = true;
+    try {
+      await window.ApiClient?.logout?.();
+    } finally {
+      localStorage.clear();
+      sessionStorage.clear();
+      window.location.href = "/";
+    }
   });
 }
 

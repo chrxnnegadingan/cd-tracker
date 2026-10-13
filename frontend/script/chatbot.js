@@ -1,7 +1,7 @@
 (function initializeEchoChatbot() {
   "use strict";
 
-  const INSTANCE_KEY = "__CODETRACKER_ECHO_INSTANCE_V5__";
+  const INSTANCE_KEY = "__CODETRACKER_ECHO_INSTANCE_V6__";
 
   if (window[INSTANCE_KEY]) {
     window[INSTANCE_KEY].ensureAvailable?.();
@@ -9,18 +9,19 @@
   }
 
   const BOT_NAME = "Echo";
-  const UI_VERSION = "5";
-  const HISTORY_VERSION = 2;
+  const UI_VERSION = "6";
+  const HISTORY_VERSION = 3;
   const HISTORY_LIMIT = 80;
   const HISTORY_CHARACTER_LIMIT = 160000;
   const MESSAGE_CHARACTER_LIMIT = 12000;
-  const REQUEST_TIMEOUT_MS = 35000;
+  const REQUEST_TIMEOUT_MS = 60000;
   const GUEST_HISTORY_KEY =
     `ct_echo_history_guest_v${HISTORY_VERSION}`;
-  const LAYOUT_KEY = "ct_echo_layout_v3";
+  const LAYOUT_KEY = "ct_echo_layout_v4";
   const LEGACY_LAYOUT_KEYS = [
     "ct_echo_layout_v1",
-    "ct_echo_layout_v2"
+    "ct_echo_layout_v2",
+    "ct_echo_layout_v3"
   ];
   const COMPACT_VIEWPORT_WIDTH = 700;
 
@@ -33,7 +34,7 @@
   function safeReadJson(key, fallback) {
     try {
       const value = JSON.parse(
-        localStorage.getItem(key) || "null"
+        (key.startsWith("ct_echo_history_") ? sessionStorage : localStorage).getItem(key) || "null"
       );
 
       return value ?? fallback;
@@ -44,7 +45,7 @@
 
   function safeWriteJson(key, value) {
     try {
-      localStorage.setItem(
+      (key.startsWith("ct_echo_history_") ? sessionStorage : localStorage).setItem(
         key,
         JSON.stringify(value)
       );
@@ -57,7 +58,7 @@
 
   function safeRemove(key) {
     try {
-      localStorage.removeItem(key);
+      (key.startsWith("ct_echo_history_") ? sessionStorage : localStorage).removeItem(key);
     } catch (_) {
       // Storage can be unavailable in private browsers.
     }
@@ -113,40 +114,12 @@
   }
 
   function getClassroomId() {
-    const path =
-      window.location.pathname.toLowerCase();
-
-    if (
-      !path.includes("/profclass/") &&
-      !path.includes("/studentclass/")
-    ) {
-      return null;
-    }
-
-    const params =
-      new URLSearchParams(
-        window.location.search
-      );
-
-    const fromQuery =
-      params.get("classroomId") ||
-      params.get("id");
-
-    if (fromQuery) {
-      return fromQuery;
-    }
-
-    try {
-      return (
-        localStorage.getItem("classroomId") ||
-        localStorage.getItem(
-          "currentClassroomId"
-        ) ||
-        null
-      );
-    } catch (_) {
-      return null;
-    }
+    // Use only the current URL. A stale browser classroom ID is not a page scope.
+    if (!/\/(profclass|studentclass)(?:\/|$)/i.test(window.location.pathname)) return null;
+    const params = new URLSearchParams(window.location.search);
+    const value = params.get("classroomId") || params.get("id") || "";
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+      ? value : null;
   }
 
   function trimHistory(items) {
@@ -172,6 +145,7 @@
                 0,
                 MESSAGE_CHARACTER_LIMIT
               ),
+              failed: item.failed === true,
               position:
                 Number(item.position) || null,
               timestamp:
@@ -475,7 +449,7 @@
                 <div class="chatbot-threads-header">
                   <div>
                     <strong>Conversations</strong>
-                    <small>Saved to your account</small>
+                    <small>Optional account history</small>
                   </div>
 
                   <button
@@ -514,6 +488,29 @@
                 </button>
               </aside>
 
+              <div class="chatbot-context-bar">
+                <label for="chatbot-classroom">Answer about</label>
+                <select id="chatbot-classroom" aria-label="Classroom context">
+                  <option value="">All my classrooms</option>
+                </select>
+                <button id="chatbot-help" type="button">Quick help</button>
+              </div>
+              <aside id="chatbot-quick-help" class="chatbot-quick-help" hidden>
+                <strong>Quick help</strong>
+                <p>Choose a classroom above to focus your answers. Ask about pending work,
+                  deadlines, scores, feedback or announcements.</p>
+                <p><b>Student:</b> Open an activity, link/create a repository, commit and push
+                  your work, then click Submit. PENDING is not yet submitted;
+                  SUBMITTED is waiting for grading; GRADED has been reviewed.</p>
+                <p><b>Instructor:</b> Create/publish activities, open submissions to review
+                  and grade, and post classroom announcements. Manage Class is on the dashboard.</p>
+                <p><b>Useful questions:</b> Ask for an unfinished-work checklist, your next priority,
+                  a two-hour study plan, simple feedback explanations or a professor progress summary.</p>
+                <p><b>Outside class:</b> Ask for coding explanations, Git help or a study plan.
+                  Echo cannot read repository files or attachment contents, run code, or change records.</p>
+                <p>New answers need internet and a valid session. Chat history is temporary
+                  to this browser tab and is cleared on logout. Never paste passwords or tokens.</p>
+              </aside>
               <div
                 id="chatbot-status"
                 class="chatbot-status"
@@ -572,6 +569,9 @@
     }
 
     const elements = {
+      classroom: document.getElementById("chatbot-classroom"),
+      help: document.getElementById("chatbot-help"),
+      quickHelp: document.getElementById("chatbot-quick-help"),
       container:
         document.getElementById(
           "chatbot-container"
@@ -703,6 +703,25 @@
       GUEST_HISTORY_KEY;
 
     let history = [];
+    let authenticatedUser = null;
+    let selectedClassroomId = getClassroomId();
+    let scopeRevision = 0;
+    let identityRequest = null;
+    let classroomLoadRevision = 0;
+
+    // Retire legacy persistent caches instead of sharing old academic replies
+    // with the next person using this computer.
+    try {
+      Object.keys(localStorage).filter(key => key.startsWith("ct_echo_history_"))
+        .forEach(key => localStorage.removeItem(key));
+    } catch (_) { /* Storage may be blocked. */ }
+    if (selectedClassroomId) {
+      const option = document.createElement("option");
+      option.value = selectedClassroomId;
+      option.textContent = "Current classroom";
+      elements.classroom.appendChild(option);
+      elements.classroom.value = selectedClassroomId;
+    }
     let historyBaseKey = GUEST_HISTORY_KEY;
     let activeThreadId = null;
     let threads = [];
@@ -755,6 +774,7 @@
     }
 
     function readHistory() {
+      if (!authenticatedUser) return [];
       return trimHistory(
         safeReadJson(
           historyKey,
@@ -764,6 +784,7 @@
     }
 
     function saveHistory() {
+      if (!authenticatedUser) return;
       const persisted = persistHistory(
         historyKey,
         history
@@ -1213,14 +1234,34 @@
       heading.textContent =
         `Hi, I’m ${BOT_NAME}.`;
 
-      description.textContent = remoteHistoryEnabled
-        ? "Ask about CodeTracker, your classroom, or an activity. This conversation is saved to your account."
-        : "Ask about CodeTracker, your classroom, or an activity. This conversation is saved on this browser.";
-
+      description.textContent = "Ask about your activities, deadlines, submissions, feedback or announcements. Choose a classroom above, or ask about all your classes. Your chat stays in this tab's session.";
+      const suggestions = document.createElement("div");
+      suggestions.className = "chatbot-suggestions";
+      const selectedRole = elements.classroom.selectedOptions?.[0]?.dataset.role;
+      const prompts = selectedRole === "INSTRUCTOR" ? [
+        "Summarize this classroom's progress.", "Who hasn't submitted anything yet?",
+        "Which submissions are waiting for grading?", "Show my announcements"
+      ] : [
+        "Make me a checklist of my unfinished work.", "What should I work on first today?",
+        "Which activities still need a repository?", "I already pushed my code. Am I finished?",
+        "Explain my professor's feedback in simple words.", "Make a two-hour study plan for my pending activities."
+      ];
+      prompts.forEach(text => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = text;
+        button.addEventListener("click", () => {
+          elements.input.value = text;
+          autoGrowInput();
+          focusSafely(elements.input);
+        });
+        suggestions.appendChild(button);
+      });
       copy.append(
         heading,
         description
       );
+      copy.appendChild(suggestions);
 
       welcome.append(
         icon,
@@ -1434,6 +1475,7 @@
       elements.newThread.disabled = sending;
       elements.clear.disabled = sending;
       elements.threadsNew.disabled = sending;
+      elements.classroom.disabled = sending;
 
       elements.send.classList.toggle(
         "is-loading",
@@ -1559,7 +1601,7 @@
       const width =
         clamp(
           elements.window.offsetWidth ||
-            390,
+            520,
           310,
           availableWidth
         );
@@ -1567,7 +1609,7 @@
       const height =
         clamp(
           elements.window.offsetHeight ||
-            560,
+            680,
           360,
           availableHeight
         );
@@ -1666,12 +1708,12 @@
 
       elements.window.classList.toggle(
         "chatbot-maximized",
-        Boolean(layout.maximized)
+        false
       );
 
       elements.window.classList.toggle(
         "chatbot-minimized",
-        Boolean(layout.minimized)
+        false
       );
 
       updateWindowControls();
@@ -1691,6 +1733,7 @@
       );
 
       window.setTimeout(() => {
+        if (!isOpen) return;
         elements.toggle.classList.remove(
           "chatbot-launcher-exiting"
         );
@@ -1750,6 +1793,7 @@
 
       animateLauncherOut();
       clampWindowToViewport();
+      void refreshClassroomChoices();
 
       window.setTimeout(() => {
         if (
@@ -1844,6 +1888,7 @@
       });
 
       window.setTimeout(() => {
+        if (!launcherSuppressed) return;
         elements.toggle.hidden = true;
         elements.reveal.hidden = false;
 
@@ -1866,36 +1911,8 @@
     }
 
     function toggleMinimize() {
-      const willMinimize =
-        !elements.window.classList.contains(
-          "chatbot-minimized"
-        );
-
-      elements.window.classList.toggle(
-        "chatbot-minimized",
-        willMinimize
-      );
-
-      if (willMinimize) {
-        setThreadsPanel(false);
-        elements.window.classList.remove(
-          "chatbot-maximized"
-        );
-      }
-
-      saveLayout({
-        minimized: willMinimize,
-        maximized: false
-      });
-
-      updateWindowControls();
-
-      if (!willMinimize) {
-        clampWindowToViewport();
-        focusSafely(
-          elements.input
-        );
-      }
+      // Minimize back to the small launcher; do not leave a wide header over class content.
+      closeChatbot();
     }
 
     function toggleMaximize() {
@@ -2006,7 +2023,7 @@
       const confirmed = await confirmAction(
         remoteHistoryEnabled
           ? "Clear this unsent conversation draft?"
-          : "Clear Echo’s saved chat history on this browser?",
+          : "Clear this conversation from this browser tab?",
         {
           title: remoteHistoryEnabled
             ? "Clear draft"
@@ -2067,6 +2084,7 @@
 
       const normalized =
         message.toLowerCase();
+      const status = Number(error?.status);
 
       if (
         error?.name === "AbortError"
@@ -2081,7 +2099,7 @@
       }
 
       if (
-        normalized.includes("401") ||
+        status === 401 || normalized.includes("401") ||
         normalized.includes(
           "unauthorized"
         ) ||
@@ -2099,7 +2117,7 @@
       }
 
       if (
-        normalized.includes("403") ||
+        status === 403 || normalized.includes("403") ||
         normalized.includes(
           "forbidden"
         ) ||
@@ -2111,7 +2129,7 @@
       }
 
       if (
-        normalized.includes("429") ||
+        status === 429 || normalized.includes("429") ||
         normalized.includes(
           "too many requests"
         ) ||
@@ -2123,7 +2141,7 @@
       }
 
       if (
-        normalized.includes("500") ||
+        status >= 500 || normalized.includes("500") ||
         normalized.includes("502") ||
         normalized.includes("503") ||
         normalized.includes("504") ||
@@ -2168,10 +2186,23 @@
         return;
       }
 
-      addPersistentMessage(
-        message,
-        "user"
-      );
+      // Resolve identity before loading/saving/sending any private conversation.
+      setSending(true);
+      if (!await resolveHistoryScope()) {
+        setSending(false);
+        setStatus("Please sign in again to ask about your classrooms. Quick help is still available.");
+        return;
+      }
+      if (message.length > 2000) {
+        setSending(false);
+        setStatus("Please shorten your message to 2000 characters.");
+        return;
+      }
+      const previousTurns = history.filter(item => !item.failed).slice(-10)
+        .map(item => ({ role: item.role, text: item.text.slice(0, 2000) }));
+      const requestScope = scopeRevision;
+      const requestUser = authenticatedUser;
+      addPersistentMessage(message, "user");
 
       elements.input.value = "";
       autoGrowInput();
@@ -2237,9 +2268,9 @@
               body: JSON.stringify({
                 message,
                 classroomId:
-                  getClassroomId(),
-                threadId:
-                  activeThreadId
+                  selectedClassroomId,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+                history: previousTurns
               })
             },
             {
@@ -2252,6 +2283,7 @@
           );
 
         thinking.remove();
+        if (requestScope !== scopeRevision || requestUser !== authenticatedUser) return;
 
         const reply =
           data?.reply ||
@@ -2285,16 +2317,29 @@
         }
       } catch (error) {
         thinking.remove();
+        if (requestScope !== scopeRevision || requestUser !== authenticatedUser) return;
 
         console.error(
           "Echo chatbot error:",
-          error
+          error?.name || "RequestError", Number(error?.status) || ""
         );
 
-        addPersistentMessage(
-          messageForRequestError(error),
-          "assistant"
-        );
+        if (Number(error?.status) === 401 || /session expired|unauthorized/i.test(error?.message || "")) {
+          authenticatedUser = null;
+          scopeRevision++;
+          history = [];
+          try { Object.keys(sessionStorage).filter(key => key.startsWith("ct_echo_history_"))
+            .forEach(key => sessionStorage.removeItem(key)); } catch (_) {}
+          renderHistory({ reload: false });
+        }
+        if (Number(error?.status) === 403) {
+          safeRemove(historyKey);
+          history = [];
+          renderHistory({ reload: false });
+        }
+        addPersistentMessage(messageForRequestError(error), "assistant");
+        if (history.length) history[history.length - 1].failed = true;
+        saveHistory();
       } finally {
         request.clearTimeout();
 
@@ -2317,62 +2362,110 @@
       }
     }
 
-    async function resolveHistoryScope() {
-      if (
-        !window.ApiClient?.request ||
-        !/\/(dashboard|studentclass|profclass|syntax)/i.test(
-          window.location.pathname
-        )
-      ) {
-        return;
-      }
-
-      try {
-        const profile =
-          await window.ApiClient.request(
-            "/users/profile",
-            {
-              method: "GET",
-
-              headers: {
-                Accept:
-                  "application/json"
-              }
-            },
-            {
-              redirectOnUnauthorized:
-                false,
-
-              retryOnRefresh:
-                true
+    function applyConversationScope(identifier) {
+      const changedAccount = authenticatedUser !== identifier;
+      const key = `ct_echo_history_${escapeKeyPart(identifier)}_v${HISTORY_VERSION}_${selectedClassroomId || "all"}`;
+      if (changedAccount || historyBaseKey !== key) {
+        if (changedAccount) {
+          try {
+            if (sessionStorage.getItem("ct_echo_account") !== identifier) {
+              Object.keys(sessionStorage).filter(k => k.startsWith("ct_echo_history_"))
+                .forEach(k => sessionStorage.removeItem(k));
             }
-          );
-
-        const identifier =
-          profile?.userId ||
-          profile?.id ||
-          profile?.email ||
-          profile?.data?.userId ||
-          profile?.data?.id ||
-          profile?.data?.email;
-
-        if (!identifier) {
-          return;
+            sessionStorage.setItem("ct_echo_account", identifier);
+          } catch (_) {}
         }
-
-        const userKey =
-          `ct_echo_history_${escapeKeyPart(
-            identifier
-          )}_v${HISTORY_VERSION}`;
-
-        historyBaseKey = userKey;
-        historyKey = userKey;
+        authenticatedUser = identifier;
+        scopeRevision++;
+        activeRequestController?.abort();
+        historyBaseKey = key;
+        historyKey = key;
+        activeThreadId = null;
+        threads = [];
         renderHistory();
-        await loadThreads();
-      } catch (_) {
-        // Guest history remains available as a fallback.
+      }
+      // This repository has no account conversation endpoints. Keep the UI honest.
+      elements.threadsToggle.hidden = true;
+    }
+
+    async function resolveHistoryScope() {
+      if (!window.ApiClient?.request) return false;
+      if (identityRequest) return identityRequest;
+      identityRequest = (async () => {
+        try {
+          const profile = await window.ApiClient.request("/users/profile", {
+            method: "GET", headers: { Accept: "application/json" }, cache: "no-store"
+          }, { redirectOnUnauthorized: false, retryOnRefresh: true });
+          const identifier = profile?.userId || profile?.id || profile?.data?.userId || profile?.data?.id;
+          if (!identifier) throw new Error("Authentication required");
+          applyConversationScope(String(identifier));
+          return true;
+        } catch (_) {
+          authenticatedUser = null;
+          scopeRevision++;
+          activeRequestController?.abort();
+          history = [];
+          try { Object.keys(sessionStorage).filter(key => key.startsWith("ct_echo_history_"))
+            .forEach(key => sessionStorage.removeItem(key)); } catch (_) {}
+          renderHistory({ reload: false });
+          return false;
+        }
+      })();
+      try { return await identityRequest; } finally { identityRequest = null; }
+    }
+
+    async function refreshClassroomChoices() {
+      const revision = ++classroomLoadRevision;
+      if (!await resolveHistoryScope()) return;
+      const user = authenticatedUser;
+      const results = await Promise.allSettled(["/classrooms/me", "/classrooms/join"].map(path =>
+        window.ApiClient.request(path, { method: "GET", cache: "no-store" },
+          { redirectOnUnauthorized: false, retryOnRefresh: true })));
+      if (revision !== classroomLoadRevision || user !== authenticatedUser) return;
+      const options = new Map();
+      results.forEach((result, index) => {
+        if (result.status !== "fulfilled") return;
+        extractResponseList(result.value).forEach(item => {
+          const data = item.classroom || item.classroomData || item;
+          const id = data.classroomId || data.id;
+          if (!id || options.has(id)) return;
+          options.set(id, {
+            label: `${data.className || data.name || "Classroom"} (${index === 0 ? "Instructor" : "Student"})`,
+            role: index === 0 ? "INSTRUCTOR" : "STUDENT"
+          });
+        });
+      });
+      elements.classroom.replaceChildren();
+      const all = document.createElement("option");
+      all.value = "";
+      all.textContent = "All my classrooms";
+      elements.classroom.appendChild(all);
+      if (selectedClassroomId && !options.has(selectedClassroomId)) {
+        options.set(selectedClassroomId, { label: "Selected classroom (access checked on send)", role: "" });
+      }
+      options.forEach((item, id) => {
+        const option = document.createElement("option");
+        option.value = id;
+        option.textContent = item.label;
+        option.dataset.role = item.role;
+        elements.classroom.appendChild(option);
+      });
+      elements.classroom.value = selectedClassroomId || "";
+      if (!history.length) renderHistory({ reload: false });
+      if (results.some(r => r.status === "rejected")) {
+        setStatus("Some classroom choices could not be loaded. Try reopening Echo.", 3000);
       }
     }
+
+    addManagedEvent(elements.classroom, "change", () => {
+      selectedClassroomId = elements.classroom.value || null;
+      if (authenticatedUser) applyConversationScope(authenticatedUser);
+      setStatus(selectedClassroomId ? "Answers now focus on the selected classroom." : "Answers now cover your accessible classrooms.", 2200);
+    });
+    addManagedEvent(elements.help, "click", () => {
+      elements.quickHelp.hidden = !elements.quickHelp.hidden;
+      elements.help.setAttribute("aria-expanded", String(!elements.quickHelp.hidden));
+    });
 
     function handleViewportChange() {
       window.requestAnimationFrame(
@@ -2648,8 +2741,15 @@
     addManagedEvent(
       window,
       "pagehide",
-      () => {
+      (event) => {
         activeRequestController?.abort();
+        scopeRevision++;
+        history = [];
+        renderHistory({ reload: false });
+        closeChatbot({ restoreFocus: false });
+        // A restored back/forward-cache page must retain its handlers and
+        // authenticate again before restoring cached private messages.
+        if (event.persisted) return;
 
         window.clearTimeout(
           statusTimer
@@ -2673,11 +2773,15 @@
 
         window[INSTANCE_KEY] =
           null;
-      },
-      {
-        once: true
       }
     );
+    addManagedEvent(window, "pageshow", (event) => {
+      if (event.persisted) {
+        authenticatedUser = null;
+        setSending(false);
+        void resolveHistoryScope();
+      }
+    });
 
     applySavedLayout();
     renderHistory();

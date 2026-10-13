@@ -150,8 +150,8 @@
   bottom: max(18px, env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
-  width: min(390px, calc(100vw - 36px));
-  height: min(560px, calc(100vh - 36px));
+  width: min(520px, calc(100vw - 36px));
+  height: min(680px, calc(100vh - 36px));
   min-width: 310px;
   min-height: 360px;
   max-width: calc(100vw - 36px);
@@ -177,7 +177,7 @@
 
 @supports (height: 100dvh) {
   #chatbot-window {
-    height: min(560px, calc(100dvh - 36px));
+    height: min(680px, calc(100dvh - 36px));
     max-height: calc(100dvh - 36px);
   }
 }
@@ -207,7 +207,7 @@
 }
 
 #chatbot-window.chatbot-minimized {
-  width: min(390px, calc(100vw - 36px));
+  width: min(520px, calc(100vw - 36px));
   height: auto !important;
   min-height: 0;
   resize: none;
@@ -1025,3 +1025,38 @@ html[data-theme="light"] :where(
     scroll-behavior: auto !important;
   }
 }
+
+/* Classroom controls are isolated from page-level form styles. */
+#chatbot-container [hidden] { display: none !important; }
+#chatbot-container .chatbot-context-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 10px 14px; border-bottom: 1px solid var(--color-border, #d0d7de);
+  color: var(--color-text, #172033); background: var(--color-surface, #fff);
+}
+#chatbot-container .chatbot-context-bar label { font-size: 12px; font-weight: 600; }
+#chatbot-container .chatbot-context-bar select {
+  min-width: 0; flex: 1; max-width: 100%; width: auto; padding: 7px;
+  border: 1px solid var(--color-border, #d0d7de); border-radius: 8px;
+  color: var(--color-text, #172033); background: var(--color-surface, #fff); font-size: 13px;
+}
+#chatbot-container #chatbot-help, #chatbot-container .chatbot-suggestions button {
+  padding: 7px 10px; border: 1px solid var(--color-border, #d0d7de);
+  border-radius: 8px; background: var(--color-surface, #fff);
+  color: var(--color-text, #172033); cursor: pointer; font-size: 12px;
+}
+#chatbot-container .chatbot-quick-help {
+  flex: 0 1 auto; overflow-y: auto; max-height: 45%; padding: 12px 16px;
+  color: var(--color-text, #172033); background: var(--color-surface, #fff);
+  border-bottom: 1px solid var(--color-border, #d0d7de); font-size: 13px; line-height: 1.5;
+}
+#chatbot-container .chatbot-suggestions { display: flex; flex-wrap: wrap; gap: 6px; }
+#chatbot-window.chatbot-minimized .chatbot-context-bar,
+#chatbot-window.chatbot-minimized .chatbot-quick-help { display: none; }
+
+/* Essential controls remain legible if the external icon font is unavailable. */
+#chatbot-minimize i, #chatbot-maximize i, #chatbot-close i { display: none; }
+#chatbot-minimize::before { content: "−"; font: 22px/1 sans-serif; }
+#chatbot-maximize::before { content: "↗"; font: 20px/1 sans-serif; }
+#chatbot-window.chatbot-maximized #chatbot-maximize::before { content: "↙"; }
+#chatbot-close::before { content: "×"; font: 24px/1 sans-serif; }
+#chatbot-toggle i::before, #chatbot-reveal i::before { content: "✦"; font-family: sans-serif; }

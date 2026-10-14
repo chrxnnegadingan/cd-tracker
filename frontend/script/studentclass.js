@@ -14,6 +14,7 @@
 
   const params      = new URLSearchParams(window.location.search);
   const classroomId = params.get('classroomId') || params.get('id') || '';
+  window.CodeTrackerCurrentClassroomId = classroomId;
 
   const state = {
     allActivities: [],

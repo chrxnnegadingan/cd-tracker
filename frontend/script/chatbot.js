@@ -114,12 +114,27 @@
   }
 
   function getClassroomId() {
-    // Use only the current URL. A stale browser classroom ID is not a page scope.
+    // Only classroom pages may supply an implicit scope. Their page scripts
+    // publish the resolved ID after initialization; storage is never consulted.
     if (!/\/(profclass|studentclass)(?:\/|$)/i.test(window.location.pathname)) return null;
     const params = new URLSearchParams(window.location.search);
-    const value = params.get("classroomId") || params.get("id") || "";
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
-      ? value : null;
+    return normalizeClassroomId(window.CodeTrackerCurrentClassroomId)
+      || normalizeClassroomId(params.get("classroomId") || params.get("id"));
+  }
+
+  function normalizeClassroomId(value) {
+    const id = String(value || "").trim();
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+      ? id : null;
+  }
+
+  function createChatRequestBody(message, classroomId, timezone, history) {
+    return {
+      message,
+      classroomId: normalizeClassroomId(classroomId),
+      timezone,
+      history
+    };
   }
 
   function trimHistory(items) {
@@ -2265,13 +2280,14 @@
               signal:
                 request.controller.signal,
 
-              body: JSON.stringify({
-                message,
-                classroomId:
+              body: JSON.stringify(
+                createChatRequestBody(
+                  message,
                   selectedClassroomId,
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-                history: previousTurns
-              })
+                  Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+                  previousTurns
+                )
+              )
             },
             {
               redirectOnUnauthorized:

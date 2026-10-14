@@ -93,6 +93,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   state.classroomId = extractClassroomId();
+  window.CodeTrackerCurrentClassroomId = state.classroomId;
 
   if (!state.classroomId) {
     showNotification("Classroom ID not found in URL.", "error");

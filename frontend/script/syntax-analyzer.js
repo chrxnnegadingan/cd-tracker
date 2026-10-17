@@ -9,6 +9,21 @@
     let currentErrors = [];
     let currentWarnings = [];
 
+    // Read-only handoff: Echo receives only the currently displayed diagnostics.
+    // No analyzer job, grading state or repository contents are changed.
+    globalScope.CodeTrackerAnalyzerContext = Object.freeze({
+      getSelectedFile() {
+        const file = fileList[currentFileIndex];
+        if (!file) return null;
+        return {
+          fileName: file.file_name || file.file_path,
+          language: file.language,
+          errors: currentErrors.map(item => ({ line: item.line, message: item.message, source_line: item.source_line })),
+          warnings: currentWarnings.map(item => ({ line: item.line, message: item.message, source_line: item.source_line }))
+        };
+      }
+    });
+
     function readPendingAnalysis() {
       const params = new URLSearchParams(globalScope.location.search);
       let stored = null;
@@ -102,6 +117,7 @@
       updateErrorPanel();
 
       if (fileList.length === 0) {
+        globalScope.dispatchEvent(new CustomEvent("codetracker:analyzer-selection"));
         document.getElementById("summaryStats").innerHTML = `<div class="stat"><i class="fas fa-info-circle"></i> No supported files found</div>`;
         document.getElementById("fileList").innerHTML = `<div style="padding: 20px; text-align: center;">No source files found</div>`;
         return;
@@ -161,6 +177,7 @@
       updateErrorPanel();
       displayCode(String(file.code ?? file.content ?? "// No code content available"), file.language);
       renderFileList(document.getElementById("fileSearch").value);
+      globalScope.dispatchEvent(new CustomEvent("codetracker:analyzer-selection"));
     };
 
     function appendHighlightedCode(target, code, language) {
@@ -306,7 +323,7 @@
       if (item) loadFile(Number(item.dataset.fileIndex));
     });
     document.addEventListener("keydown", (event) => {
-      if (event.target.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (event.target.closest("#chatbot-container, input, textarea, select, [contenteditable='true']")) return;
       const next = event.key === "ArrowUp" ? currentFileIndex - 1 : event.key === "ArrowDown" ? currentFileIndex + 1 : -1;
       if (next >= 0 && next < fileList.length) { event.preventDefault(); loadFile(next); }
     });

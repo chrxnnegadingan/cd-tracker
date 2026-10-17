@@ -62,11 +62,11 @@ test("Echo registers initialization without leaking private history variables at
   assert.equal(callbacks.length, 1);
 });
 
-test("missing account APIs are explicitly optional, with local fallbacks kept", () => {
+test("persistent chat is enabled while account theme remains optional", () => {
   const window = {};
   vm.runInNewContext(read("frontend/script/runtime-config.js"), { window });
   assert.equal(window.CodeTrackerConfig.features.accountTheme, false);
-  assert.equal(window.CodeTrackerConfig.features.remoteChatHistory, false);
+  assert.equal(window.CodeTrackerConfig.features.remoteChatHistory, true);
   assert.match(read("frontend/script/theme.js"), /features\?\.accountTheme/);
   assert.match(read("frontend/script/chatbot.js"), /features\?\.remoteChatHistory/);
 });

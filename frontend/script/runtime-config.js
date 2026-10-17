@@ -9,10 +9,10 @@
     // Set this to the replacement analyzer service's HTTPS origin when restored.
     analyzerBaseUrl: "https://anayzer-production-50e0.up.railway.app",
     features: {
-      // These account APIs do not exist in the supplied backend yet.
-      // Local theme selection and browser chat history remain available.
+      // Deploy the persistent-history backend and Supabase SQL migration first.
+      // Account theme sync is still optional; chat history now uses the backend.
       accountTheme: false,
-      remoteChatHistory: false
+      remoteChatHistory: true
     }
   };
 

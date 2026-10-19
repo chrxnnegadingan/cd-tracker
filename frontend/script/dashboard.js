@@ -1302,7 +1302,9 @@ function renderClasses() {
         return;
     }
 
-    const classes   = getFilteredClasses(classroomsData[currentTab] || []);
+    const classes   = getFilteredClasses(classroomsData[currentTab] || [])
+        .slice()
+        .sort((a, b) => getClassroomDisplayName(a).localeCompare(getClassroomDisplayName(b), undefined, { sensitivity: 'base' }));
     const isCreated = currentTab === 'created';
 
     if (classes.length === 0) {
@@ -1318,6 +1320,10 @@ function renderClasses() {
 
     container.innerHTML = classes.map(c => createClassCard(c, isCreated)).join('');
     attachClassCardHandlers();
+}
+
+function getClassroomDisplayName(classroom) {
+    return String(classroom?.className || classroom?.name || classroom?.title || 'Unnamed Class').trim();
 }
 
 function createClassCard(classroom, isCreated) {

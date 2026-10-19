@@ -351,8 +351,8 @@
         submissionStatus: response?.data?.submissionStatus || 'SUBMITTED',
         submittedAt: response?.data?.submittedAt || new Date().toISOString(),
       });
-      await loadAll();
-      await window.AppDialog?.alert(`${activityTitle} submitted successfully.`, { title: 'Activity Submitted' });
+      // Keep the submitted state visible immediately while the list endpoints catch up.
+      void loadAll();
     } catch (err) {
       await window.AppDialog?.alert(err?.message || 'Failed to submit activity.', { title: 'Submission Failed' });
     } finally {
@@ -795,7 +795,6 @@
       closeSubmissionModal({ force: true });
       clearSubmissionForm();
       await loadAll();
-      await window.AppDialog?.alert('Repository attached. Push your finished work to GitHub, then click Submit Activity in Tracked Activities.', { title: 'Repository Attached' });
     } catch (err) {
       setSubmitButtonState('error');
       await window.AppDialog?.alert(err?.message || 'Failed to attach repository. Please try again.', { title: 'Attachment Failed' });

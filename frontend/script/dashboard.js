@@ -1472,10 +1472,6 @@ async function leaveJoinedClassroom(classId, className) {
             redirectOnUnauthorized: false
         });
 
-        await window.AppDialog.alert('You have left the classroom.', {
-            title: 'Room Left'
-        });
-
         await refreshClassroomTab('joined');
     } catch (error) {
         console.error('Error leaving classroom:', error);

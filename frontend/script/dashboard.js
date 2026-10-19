@@ -1269,6 +1269,8 @@ async function loadJoinedClasses({ force = false } = {}) {
 
 async function refreshClassroomTab(tab) {
     if (!tab) return;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
     currentTab = tab;
     document.querySelectorAll('.tab-button').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.tab === tab);
@@ -1278,6 +1280,9 @@ async function refreshClassroomTab(tab) {
     } else {
         await loadClasses();
     }
+
+    // Keep the dashboard at the same place after the cards have been refreshed.
+    window.scrollTo(scrollX, scrollY);
 }
 
 function switchTab(tab) {
@@ -1297,7 +1302,9 @@ function renderClasses() {
         return;
     }
 
-    const classes   = getFilteredClasses(classroomsData[currentTab] || []);
+    const classes   = getFilteredClasses(classroomsData[currentTab] || [])
+        .slice()
+        .sort((a, b) => getClassroomDisplayName(a).localeCompare(getClassroomDisplayName(b), undefined, { sensitivity: 'base' }));
     const isCreated = currentTab === 'created';
 
     if (classes.length === 0) {
@@ -1313,6 +1320,10 @@ function renderClasses() {
 
     container.innerHTML = classes.map(c => createClassCard(c, isCreated)).join('');
     attachClassCardHandlers();
+}
+
+function getClassroomDisplayName(classroom) {
+    return String(classroom?.className || classroom?.name || classroom?.title || 'Unnamed Class').trim();
 }
 
 function createClassCard(classroom, isCreated) {
@@ -1465,9 +1476,7 @@ async function leaveJoinedClassroom(classId, className) {
             title: 'Room Left'
         });
 
-        // Reload the dashboard to refresh the classes list
-        await loadClasses();
-        renderClasses();
+        await refreshClassroomTab('joined');
     } catch (error) {
         console.error('Error leaving classroom:', error);
         await window.AppDialog.alert(error?.message || 'Failed to leave the classroom.', {
@@ -1581,7 +1590,7 @@ async function handleUpdateClassroom() {
 
         showNotification('Classroom updated!', 'success');
         closeModal(manageModal);
-        await loadClasses();
+        await refreshClassroomTab(currentTab);
 
     } catch (error) {
         console.error('Update classroom error:', error);

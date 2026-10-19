@@ -3,6 +3,7 @@
 
   const assignmentsList = document.getElementById("assignmentsList");
   if (!assignmentsList) return;
+  const activityList = document.getElementById("activityList");
 
   let renderQueued = false;
 
@@ -30,6 +31,31 @@
 
   function scheduleAssignmentsViewport() {
     window.requestAnimationFrame(syncAssignmentsViewport);
+  }
+
+  function syncActivityViewport() {
+    if (!activityList) return;
+    const items = [...activityList.querySelectorAll(".activity-item")];
+    if (items.length <= 3) {
+      activityList.classList.remove("has-scroll");
+      activityList.style.removeProperty("--activity-list-max-height");
+      return;
+    }
+
+    const thirdItem = items[2];
+    const listTop = activityList.getBoundingClientRect().top;
+    const thirdBottom = thirdItem.getBoundingClientRect().bottom;
+    const bottomSpacing = Number.parseFloat(getComputedStyle(thirdItem).marginBottom) || 0;
+    const visibleHeight = Math.ceil(thirdBottom - listTop + bottomSpacing);
+
+    if (visibleHeight > 0) {
+      activityList.style.setProperty("--activity-list-max-height", `${visibleHeight}px`);
+      activityList.classList.add("has-scroll");
+    }
+  }
+
+  function scheduleActivityViewport() {
+    window.requestAnimationFrame(syncActivityViewport);
   }
 
   function safeState() {
@@ -143,6 +169,7 @@
       renderQueued = false;
       renderPanel();
       scheduleAssignmentsViewport();
+      scheduleActivityViewport();
     });
   }
 
@@ -156,10 +183,14 @@
 
   const observer = new MutationObserver(queueRender);
   observer.observe(assignmentsList, { childList: true, subtree: true });
+  const activityObserver = activityList ? new MutationObserver(scheduleActivityViewport) : null;
+  activityObserver?.observe(activityList, { childList: true, subtree: true });
   window.addEventListener("resize", scheduleAssignmentsViewport);
+  window.addEventListener("resize", scheduleActivityViewport);
   document.getElementById("saveGradeBtn")?.addEventListener("click", () => window.setTimeout(queueRender, 800));
 
   queueRender();
   window.setTimeout(queueRender, 500);
   window.setTimeout(queueRender, 1400);
+  window.setTimeout(scheduleActivityViewport, 500);
 })();

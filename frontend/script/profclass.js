@@ -974,9 +974,15 @@ function renderActivities() {
 
 function renderStudents() {
   const container = document.getElementById("studentsList");
+  const count = Array.isArray(state.students) ? state.students.length : 0;
+  const countBadge = document.getElementById("studentsCount");
+  if (countBadge) {
+    countBadge.textContent = String(count);
+    countBadge.setAttribute("aria-label", `${count} ${count === 1 ? "student" : "students"}`);
+  }
   if (!container) return;
 
-  if (!Array.isArray(state.students) || state.students.length === 0) {
+  if (count === 0) {
     container.innerHTML = `
             <div class="empty-state">
                 <i class="fas fa-users"></i>

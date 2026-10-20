@@ -705,7 +705,7 @@
         method: "POST",
         headers: { Accept: "application/json" },
         body: createRegistrationFormData(payload, profileFile)
-      }, { retryOnRefresh: false });
+      });
     },
 
     getProfile() {
